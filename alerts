@@ -1,0 +1,31 @@
+USE [msdb]
+GO
+
+/****** Object:  Alert [Securtiy Permission Alert]    Script Date: 27/01/2019 22:30:23 ******/
+EXEC msdb.dbo.sp_add_alert @name=N'Securtiy Permission Alert', 
+		@message_id=0, 
+		@severity=14, 
+		@enabled=1, 
+		@delay_between_responses=0, 
+		@include_event_description_in=1, 
+		@notification_message=N'Check user account, either a wrong password has been used or a User has attempted to access a resource they have no rights to. If this happens multiple times, this is an: Attempt at Exploiting Vulnerabilities, notifiy the IT Security Team immediately. Log the IP Address and Machine and Account Name.', 
+		@category_name=N'[Uncategorized]', 
+		@job_id=N'00000000-0000-0000-0000-000000000000'
+GO
+
+
+USE [msdb]
+GO
+
+/****** Object:  Alert [No Access Alert 916]    Script Date: 27/01/2019 22:30:38 ******/
+EXEC msdb.dbo.sp_add_alert @name=N'No Access Alert 916', 
+		@message_id=916, 
+		@severity=0, 
+		@enabled=1, 
+		@delay_between_responses=0, 
+		@include_event_description_in=1, 
+		@notification_message=N'This user has attempted to access Resouces they have no permission to. Please confirm permission error with user.', 
+		@category_name=N'[Uncategorized]', 
+		@job_id=N'00000000-0000-0000-0000-000000000000'
+GO
+
