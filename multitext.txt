@@ -1,0 +1,504 @@
+--last restore
+
+SELECT @@SERVERNAME Server,
+	bus.database_name Org_DBName,
+	Restored_To_DBName,
+	Last_Date_Restored, physical_device_name RestoredFrom,backup_start_date,backup_finish_date 
+FROM
+	msdb..backupset bus
+INNER JOIN
+(
+	SELECT
+		backup_set_id,
+		Restored_To_DBName,
+		Last_Date_Restored
+	FROM
+		msdb..restorehistory
+	INNER JOIN
+	(
+		SELECT 
+			rh.destination_database_name Restored_To_DBName,
+			Max(rh.restore_date) Last_Date_Restored
+		FROM 
+			msdb..restorehistory rh
+		GROUP BY
+			rh.destination_database_name
+	) AS InnerRest
+	ON
+		destination_database_name = Restored_To_DBName AND
+		restore_date = Last_Date_Restored
+) As RestData
+ON
+	bus.backup_set_id = RestData.backup_set_id
+	LEFT JOIN msdb.dbo.backupmediafamily bf
+	ON bf.media_set_id =bus.media_set_id
+	
+	ORDER BY 4 desc
+---all backups	
+	SELECT *
+	FROM
+		msdb..restorehistory  rh
+		left join msdb..backupset bus
+		on bus.backup_set_id = rh.backup_set_id
+	LEFT JOIN msdb.dbo.backupmediafamily bf
+	ON bf.media_set_id =bus.media_set_id
+		
+		WHERE destination_database_name ='[i1_PMD_BASELINE]'
+
+
+			SELECT physical_device_name,*
+	FROM
+		msdb..restorehistory h
+		inner join msdb..backupset bus 
+				on bus.backup_set_id = h.backup_set_id
+			left join msdb.dbo.backupmediafamily bf	
+			ON bf.media_set_id =bus.media_set_id
+		WHERE destination_database_name =DB_NAME()
+		order by 3 desc
+	
+	
+---------------last backup
+
+SELECT  sd.name AS [Database],
+        CASE WHEN bs.type = 'D' THEN 'Full backup'
+             WHEN bs.type = 'I' THEN 'Differential'
+             WHEN bs.type = 'L' THEN 'Log'
+             WHEN bs.type = 'F' THEN 'File/Filegroup'
+             WHEN bs.type = 'G' THEN 'Differential file'
+             WHEN bs.type = 'P' THEN 'Partial'
+             WHEN bs.type = 'Q' THEN 'Differential partial'
+             WHEN bs.type IS NULL THEN 'No backups'
+             ELSE 'Unknown (' + bs.type + ')'
+        END AS [Backup Type],
+        max(bs.backup_start_date) AS [Last Backup of Type]
+FROM    master..sysdatabases sd
+        LEFT OUTER JOIN msdb..backupset bs ON rtrim(bs.database_name) = rtrim(sd.name)
+        LEFT OUTER JOIN msdb..backupmediafamily bmf ON bs.media_set_id = bmf.media_set_id
+WHERE   sd.name <> 'tempdb'
+GROUP BY sd.name,
+        bs.type,
+        bs.database_name
+ORDER BY  [Last Backup of Type]
+
+
+---last run queries
+
+SELECT deqs.last_execution_time AS [Time], dest.TEXT AS [Query]
+FROM sys.dm_exec_query_stats AS deqs
+CROSS APPLY sys.dm_exec_sql_text(deqs.sql_handle) AS dest
+ORDER BY deqs.last_execution_time DESC
+
+
+
+
+---transaction log query
+select *
+from ::fn_dblog(null, null)
+where Operation = 'LOP_MODIFY_COLUMNS'
+
+
+SELECT convert(VARCHAR(06),GETDATE(),112) +'01' StartDate,convert(VARCHAR(06),DATEADD(MM,1,GETDATE()),112) +'01' Enddate
+SELECT convert(VARCHAR(06),DATEADD(MM,1,GETDATE()),112) +'01'
+
+SELECT cast(convert(VARCHAR(06),DATEADD(MM,-1,GETDATE()),112) +'01' as datetime) Startdate
+
+SELECT cast(convert(VARCHAR(06),DATEADD(MM,-1,GETDATE()),112) +'01' as datetime) Startdate,cast(convert(VARCHAR(06),GETDATE(),112) +'01' as datetime)EndDate
+
+
+
+
+,cast(convert(VARCHAR(06),DATEADD(MM,1,GETDATE()),112) +'01' as datetime) Enddate
+
+
+
+-------script out user permissions
+
+
+
+SET NOCOUNT ON
+
+
+DECLARE	@OldUser sysname, @NewUser sysname
+
+
+SET	@OldUser = 'iReportingServices'
+SET	@NewUser = 'iReportingServices'
+
+
+SELECT	'USE' + SPACE(1) + QUOTENAME(DB_NAME()) AS '--Database Context'
+
+
+SELECT	'--Cloning permissions from' + SPACE(1) + QUOTENAME(@OldUser) + SPACE(1) + 'to' + SPACE(1) + QUOTENAME(@NewUser) AS '--Comment'
+
+
+SELECT	'EXEC sp_addrolemember @rolename =' 
+	+ SPACE(1) + QUOTENAME(USER_NAME(rm.role_principal_id), '''') + ', @membername =' + SPACE(1) + QUOTENAME(@NewUser, '''') AS '--Role Memberships'
+FROM	sys.database_role_members AS rm
+WHERE	USER_NAME(rm.member_principal_id) = @OldUser
+ORDER BY rm.role_principal_id ASC
+
+
+SELECT	CASE WHEN perm.state <> 'W' THEN perm.state_desc ELSE 'GRANT' END
+	+ SPACE(1) + perm.permission_name + SPACE(1) + 'ON ' + QUOTENAME(USER_NAME(obj.schema_id)) + '.' + QUOTENAME(obj.name) 
+	+ CASE WHEN cl.column_id IS NULL THEN SPACE(0) ELSE '(' + QUOTENAME(cl.name) + ')' END
+	+ SPACE(1) + 'TO' + SPACE(1) + QUOTENAME(@NewUser) COLLATE database_default
+	+ CASE WHEN perm.state <> 'W' THEN SPACE(0) ELSE SPACE(1) + 'WITH GRANT OPTION' END AS '--Object Level Permissions'
+FROM	sys.database_permissions AS perm
+	INNER JOIN
+	sys.objects AS obj
+	ON perm.major_id = obj.[object_id]
+	INNER JOIN
+	sys.database_principals AS usr
+	ON perm.grantee_principal_id = usr.principal_id
+	LEFT JOIN
+	sys.columns AS cl
+	ON cl.column_id = perm.minor_id AND cl.[object_id] = perm.major_id
+WHERE	usr.name = @OldUser
+ORDER BY perm.permission_name ASC, perm.state_desc ASC
+
+
+SELECT	CASE WHEN perm.state <> 'W' THEN perm.state_desc ELSE 'GRANT' END
+	+ SPACE(1) + perm.permission_name + SPACE(1)
+	+ SPACE(1) + 'TO' + SPACE(1) + QUOTENAME(@NewUser) COLLATE database_default
+	+ CASE WHEN perm.state <> 'W' THEN SPACE(0) ELSE SPACE(1) + 'WITH GRANT OPTION' END AS '--Database Level Permissions'
+FROM	sys.database_permissions AS perm
+	INNER JOIN
+	sys.database_principals AS usr
+	ON perm.grantee_principal_id = usr.principal_id
+WHERE	usr.name = @OldUser
+AND	perm.major_id = 0
+ORDER BY perm.permission_name ASC, perm.state_desc ASC
+
+
+
+---------------server version
+
+SELECT     CONVERT(varchar(200), SERVERPROPERTY('Servername')) AS Server,
+(select datediff(dd,min(login_time),getdate()) from master..sysprocesses)  Last_Days_Since_Reboot,
+(select case when count(*) =1 then 'Yes' else 'No' End SQLAgent_Running from master..sysprocesses
+where program_name='SQLAgent - Generic Refresher') SQLAgent_Running,
+--CONVERT(varchar(4), SERVERPROPERTY('ProductVersion')) [SQLVerNo.] ,
+cast(db_name() as varchar(20)) + ' Queried' TempDataBaseUP,
+   substring(cast( @@VERSION as varchar(28)),10,28) SQL_Version,
+   cast(SERVERPROPERTY('Edition') as varchar(100)) EngineEdition,
+	  CONVERT(varchar(200), SERVERPROPERTY('ProductLevel')) AS SQL_ProductLevel,
+	   CONVERT(varchar(200), SERVERPROPERTY('ProductVersion')) AS SQL_ProductVersion,
+	   --vk start
+	   (select count(*) from DBASQLADMIN..DiskFreeSpace) As [Total Drives],
+	  (select * from DBASQLADMIN..Drives) as Drives,
+	   --vk end
+case  when RIGHT(@@version, LEN(@@version)- 3 -charindex (' ON ',@@VERSION)) like '%6.3%' then 'Windows Server 2012 R2'
+when RIGHT(@@version, LEN(@@version)- 3 -charindex (' ON ',@@VERSION)) like '%6.2%' then 'Windows Server 2008 R2'
+when RIGHT(@@version, LEN(@@version)- 3 -charindex (' ON ',@@VERSION)) like '%6.1%' then 'Windows Server 2008 R2'
+when RIGHT(@@version, LEN(@@version)- 3 -charindex (' ON ',@@VERSION)) like '%6.0%' then 'Windows Server 2008'
+when RIGHT(@@version, LEN(@@version)- 3 -charindex (' ON ',@@VERSION)) like '%5.2%' then 'Windows Server 2003 R2'
+when RIGHT(@@version, LEN(@@version)- 3 -charindex (' ON ',@@VERSION)) like '%5.2%' then 'Windows Server 2003 R2'
+end WindowsVersion,
+
+ cast(substring(cast(@@VERSION as varchar(300)), CHARINDEX('NT ',@@VERSION), 100) as varchar(40)) WindowsServicePack,
+
+          
+
+           
+                                           SERVERPROPERTY('Collation') Collation,
+           CONVERT(char(100), SERVERPROPERTY('ResourceLastUpdateDateTime')) AS ResourceLastUpdateDateTime,
+case WHEN SERVERPROPERTY('IsIntegratedSecurityOnly') 
+                      = 1 THEN 'Integrated security' WHEN SERVERPROPERTY('IsIntegratedSecurityOnly') = 0 THEN 'Not Integrated security' END AS IsIntegratedSecurityOnly, 
+ 
+isnull(CONVERT(varchar(200),SERVERPROPERTY('InstanceName')),'--') AS InstanceName,
+  CONVERT(varchar(200), SERVERPROPERTY('ComputerNamePhysicalNetBIOS')) AS ComputerNamePhysicalNetBIOS, 
+                     
+                       CASE WHEN CONVERT(char(100), SERVERPROPERTY('IsClustered')) = 1 THEN 'Clustered' WHEN SERVERPROPERTY('IsClustered') 
+                      = 0 THEN 'Not Clustered' WHEN SERVERPROPERTY('IsClustered') = NULL THEN 'Error' END AS IsClustered, CASE WHEN CONVERT(char(100), 
+                      SERVERPROPERTY('IsFullTextInstalled')) = 1 THEN 'Full-text is installed' WHEN SERVERPROPERTY('IsFullTextInstalled') 
+                      = 0 THEN 'Full-text is not installed' WHEN SERVERPROPERTY('IsFullTextInstalled') = NULL THEN 'Error' END AS IsFullTextInstalled,
+                                     case cast(@@servername as varchar(100))
+when '0CASCADE01' then  'Cascade HR'
+when '0LANDSCAPEBP' then  'Landscape Printing'
+when 'LANDSCAPEBP' then  'Landscape Printing'
+when '0RMSSQLMI01' then  'RMS MI'
+when '0SISQL01' then  'SEQUEL, Iras'
+when '0SQLCOGNOSLIVE' then  'Cognos BI'
+when '0SQLEELIVE01' then  'Earning Engine/Broker DB'
+when '0SQLEE01' then  'Earning Engine'
+when '0SQLLANDSCAPE01\MI' then  'Landscape MI'
+when '0SQLLANDSCAPE02\LSLIVE' then  'Landscape Live'
+when '0SQLSUNGARD01' then  'SunGard'
+when '0CODASQL01' then  'CODA Server'
+when '0UMGPROD01' then  'Online Messaging'
+when '0SQLMON01' then  'SolarWinds,Redgate, MDW, CMS'
+when '0NAVSQL01' then  'Navigator'
+
+--when '0SQLRMS01' then  'RMS'
+--when '0SQLRMS02' then  'RMS'
+when '0SQLRMS03' then  'RMS'
+when '1SQLRMS03' then  'RMS'
+when '2SQLRMS01' then  'RMS'
+when '2SQLRMS02' then  'RMS'
+when '0SQLRMSIFM01' then  'RMS'
+when '0SQLRMSARC01' then  'RMS'
+when '2RMSSQLMI01' then  'RMS MI'
+
+when '0HPCPSQL01' then  'ControlPoint: clean data across enterprise systems'
+when '0SQLSPOINT01' then  'Sharepoint'
+when '0SQLWAREHOUSE01\CDW' then  'Warehouse'
+when '0SQLSREP01\MSSQL2K8' then  'Mimecast'
+
+when '1INFSQLMN01' then  'Citirx,Virtual Centre, Trend'
+when '1SQLINFN01' then  'Citirx,Virtual Centre, Trend'
+
+
+when '1LANDSCAPE_PMD1' then  'Landscape PMD'
+when '1PROTEUS\PROTEUS' then  'Call Logger'
+when '1SMSQLVERIFY01' then  'SQL Verify Server'
+when '1SMSQLVERIFY02' then  'SQL Verify Server'
+when '1SMSQLVERIFY04' then  'SQL Verify Server'
+when '2SMSQLVERIFY01' then  'SQL Verify Server'
+when '2SMSQLVERIFY02' then  'SQL Verify Server'
+when '2008REPORTING' then  'Reporting Server'
+when '2INFSQLMN01' then  'SolarWinds, Citirx,Virtual Centre, Trend'
+when '2SQLINFN02' then  'SolarWinds, Citirx,Virtual Centre, Trend'
+when '2PRICINGSQL01' then  'Pricing'
+when 'BDX_SQL\BDX' then  'BDX'
+when 'CLUSTER7' then  'Live Excel Discovery, inventory, data validation and lineage'
+when '1CANAIRSQL01' then  'Air'
+when 'CANBACKUP' then  'Backup Server'
+when 'CANSUBSQL' then  'Subscribe'
+when 'CUBL_SUB' then  'Subscribe Bemuda,Zurich'
+when 'DEIMOS' then  'Phobos1 Failover/Movement Reports'
+when 'DMS-SQL\DMS' then  'DMS Workflow'
+when 'DMS-SQL\EPS' then  'DMS Workflow'
+when 'ITACSSQL' then  'ITACS'
+when 'JUNO' then  'Elgar'
+when 'KGM-SQLSVR' then  'Old Helpdesk'
+when 'KGMVM-SQL1' then  'WSS_Search_COMPLAINTS, BesMgmt, Interact4'
+when 'MARS' then  'Reporting'
+when 'MCPSQL\MSSQL2000' then  'Eclipse'
+when 'MCPSQL\MSSQL2008' then  'Reporting Server'
+when 'MDSSQL' then  'Master Data Services'
+when 'Orion' then  'SafeEnd'
+when 'PANDORASQL' then  'Pandora'
+when 'PHOBOS' then  'Deman,CMS'
+when 'PHOBOS1' then  'Subscribe BI'
+when 'SOSTENUTO' then  'Web Apps'
+when 'SREP' then  'Broker Repository'
+when 'SSPBI' then  'Sirius BI'
+when 'SSPSQL' then  'Sirius'
+when 'SUNDB' then  'Sun Systems'
+when 'TARVOS' then  'Eclipse'
+when 'UMGPROD' then  'Electronic Messaging'
+when 'VKGM-SQL05' then  'Swordfish'
+when 'VSOURCEPRO' then  'SourceGear'
+when 'XPOSURE' then  'Iras' else '??'
+end Application,
+(select count(*) from master..sysdatabases) Database_Total,
+(select filename from sysfiles where fileid=1) tempfileloaction
+
+
+----tlog query
+
+SELECT Operation, Context, [Transaction ID], [Begin Time], [End Time], AllocUnitName, [Description],
+
+[UID], [Server UID], SPID, [Transaction Name], [Number of Locks], [Lock Information]
+
+, * -- shows the rest of the columns, I put the most interesting first
+
+FROM ::fn_dblog(DEFAULT, DEFAULT) AS l
+
+where operation='mark_ddl' -- this will show rows where there is data definition language
+
+-- operation='LOP_MODIFY_ROW' or operation='INSERT_ROWS' or operation='DELETE_ROWS'
+
+-- operation='LOP_BEGIN_XACT' -- means beginning of a transaction
+
+-- operation='LOP_COMMIT_XACT' -- means the end of a transaction
+
+order by [Current LSN] asc
+
+
+
+select * FROM ::fn_dblog(DEFAULT, DEFAULT) AS l
+
+
+
+
+-- for the above Mark_DDL you can create a job step that checks your critical 
+-- databases for undesireable activity and if there is an existence of a DDL change (use IF EXISTS with the above)
+
+declare @myfromname varchar(150)
+
+declare @alladdresses varchar(max)
+
+declare @myrecipients varchar(150)
+
+declare @mycurrentaddress varchar(max)
+
+declare @SubjectLocal varchar(200)
+
+declare @databasename varchar(100)
+
+set @databasename=(select top 1 name from sysfiles)
+
+BEGIN
+
+-- Name of current sender
+
+SET @myfromname = N'Message regarding Log file activity on ' + @@servername
+
+-- Get e-mail adresses of operators
+
+BEGIN
+
+SET @alladdresses = N''
+
+DECLARE MAILResults_CURSOR CURSOR FORWARD_ONLY READ_ONLY FOR 
+
+SELECT email_address FROM msdb.dbo.sysoperators 
+
+where email_address IS NOT NULL
+
+OPEN MAILResults_CURSOR
+
+FETCH NEXT FROM MAILResults_CURSOR INTO @myrecipients
+
+WHILE @@FETCH_STATUS = 0
+
+BEGIN
+
+SET @mycurrentaddress = @myrecipients + CHAR(59)
+
+SET @alladdresses = @alladdresses + @mycurrentaddress
+
+FETCH NEXT FROM MAILResults_CURSOR INTO @myrecipients
+
+END
+
+CLOSE MAILResults_CURSOR
+
+DEALLOCATE MAILResults_CURSOR
+
+IF @alladdresses <> N'' 
+
+BEGIN
+
+SET @SubjectLocal = 'Log file undesireable activity in the ' + @databasename + ' DB on ' + @@servername
+
+ 
+
+EXEC msdb.dbo.sp_send_dbmail
+
+@profile_name = NULL
+
+,@recipients = @alladdresses
+
+,@copy_recipients = NULL
+
+,@blind_copy_recipients = NULL
+
+,@subject = @SubjectLocal
+
+,@body = 'Please verify the log to find out what happened in '+ @databasename +' using select * FROM ::fn_dblog(DEFAULT, DEFAULT) AS l'
+
+,@body_format = 'TEXT'
+
+,@importance = 'High'
+
+,@sensitivity = 'Normal'
+
+END
+
+END 
+
+END 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- 
+-- Source: SQL Server Forensic Analysis
+-- Script: Tlog.sql - Gathers the 1000 most recent SQL Server 2000, 2005 or 2008 transaction log entries per database
+-- 
+--
+-- Verify if server is running SQL Server 2000, if so gather data, otherwise jump to next version check
+DECLARE 	@dbname varchar(400)
+IF CONVERT(char(20), SERVERPROPERTY('productversion')) LIKE '8.00%'
+BEGIN
+--
+--
+--
+DECLARE CUR_getdbusr CURSOR READ_ONLY FOR 
+select [name] from master..sysdatabases;
+OPEN CUR_getdbusr
+--
+FETCH NEXT FROM CUR_getdbusr INTO @dbname
+WHILE @@FETCH_STATUS = 0
+--
+BEGIN
+--
+-- Gather transaction log entries
+EXEC('USE ' + @dbname + ' select Top 1000 ' +  '''' + @dbname + '''' + ' as ''Database'', [Current LSN], [Object Name], Operation, [Transaction ID], [Page ID], [Slot ID], [Offset in Row], [Server UID], SPID, [Begin Time], [Transaction Name], [End Time] from ::fn_dblog(null, null) order by [Current LSN]')
+--
+FETCH NEXT FROM CUR_getdbusr INTO @dbname
+END
+--
+CLOSE CUR_getdbusr
+DEALLOCATE CUR_getdbusr
+--
+-- Log and exit script
+GOTO LOG_EXIT
+END
+--
+ELSE
+--
+-- Verify if server is running SQL Server 2005 or 2008
+IF ((CONVERT(char(20), SERVERPROPERTY('productversion')) LIKE '9.00%') OR (CONVERT(char(20), SERVERPROPERTY('productversion')) LIKE '10.0%'))
+BEGIN
+--
+-- Gather Transaction Log entries
+--
+--
+DECLARE CUR_getdbusr CURSOR READ_ONLY FOR 
+select [name] from sys.sysdatabases;
+OPEN CUR_getdbusr
+--
+FETCH NEXT FROM CUR_getdbusr INTO @dbname
+WHILE @@FETCH_STATUS = 0
+--
+BEGIN
+--
+-- Gather transaction log entries
+EXEC ('USE ' + @dbname + ' select Top 1000 ' + '''' + @dbname + '''' + ' as ''Database'', [Current LSN], Operation, [Transaction ID], [AllocUnitName], [Page ID], [Slot ID], [Offset in Row], [Server UID], SPID, [Begin Time], [Transaction Name], [Transaction SID], [End Time], [Description], [RowLog Contents 0], [RowLog Contents 1], [RowLog Contents 2], [RowLog Contents 3], [RowLog Contents 4] from ::fn_dblog(null, null) order by [Current LSN]')
+FETCH NEXT FROM CUR_getdbusr INTO @dbname
+END
+--
+CLOSE CUR_getdbusr
+DEALLOCATE CUR_getdbusr
+--
+LOG_EXIT:
+-- Log connection information
+PRINT ''
+PRINT ''
+PRINT ''
+PRINT '************************************************************************************************************************************'
+PRINT 'User: ' + suser_sname() +' | Script: Tlog.sql | SPID: ' + CAST(@@SPID AS VARCHAR(5)) + ' | Closed on ' + CAST(GETDATE() AS VARCHAR(30))
+PRINT '************************************************************************************************************************************'
+-- Exit script
+RETURN
+END
+--
+
+
+----windows group list
+
+EXEC XP_LOGININFO 'domain\support','members'
