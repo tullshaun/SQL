@@ -1,0 +1,15 @@
+USE msdb;
+GO
+
+SELECT 
+    r.destination_database_name AS DatabaseName,
+    r.restore_date AS RestoreDate,
+    bmf.physical_device_name AS BackupFileUsed
+FROM 
+    dbo.restorehistory r
+    INNER JOIN dbo.backupset b ON r.backup_set_id = b.backup_set_id
+    INNER JOIN dbo.backupmediafamily bmf ON b.media_set_id = bmf.media_set_id
+WHERE 
+    r.destination_database_name = 'YourDatabaseName'
+ORDER BY 
+    r.restore_date DESC;
