@@ -1,0 +1,26 @@
+SELECT 
+    C.Name AS ReportName,
+    S.ScheduleID,
+    Sub.LastRunTime,
+    CASE 
+        WHEN L.Status = 'rsSuccess' THEN 'Success'
+        ELSE 'Failure'
+    END AS ExecutionStatus,
+    L.TimeStart,
+    L.TimeEnd,
+    L.TimeDataRetrieval,
+    L.TimeProcessing,
+    L.TimeRendering,
+    L.Source,
+    L.[ByteCount],
+    L.[RowCount],
+    L.[AdditionalInfo]
+FROM 
+    dbo.ExecutionLog3 AS L
+    INNER JOIN dbo.Catalog AS C ON L.ReportID = C.ItemID
+    LEFT JOIN dbo.Subscriptions AS Sub ON L.ReportID = Sub.Report_OID
+    LEFT JOIN dbo.Schedule AS S ON Sub.SubscriptionID = S.SubscriptionID
+WHERE 
+    C.Name = @ReportName
+ORDER BY 
+    L.TimeStart DESC;
