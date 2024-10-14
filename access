@@ -179,7 +179,120 @@ Introducing the Automated Self-Documenting System: A powerful, versatile solutio
 
 
 
+##code
 
+USE FinanceDB;
+GO
+EXEC sp_addextendedproperty 
+    @name = 'GroupOwner', 
+    @value = 'Finance Team';
+EXEC sp_addextendedproperty 
+    @name = 'BusinessPriority', 
+    @value = 'Critical';
+EXEC sp_addextendedproperty 
+    @name = 'BusinessFunction', 
+    @value = 'Finance';
+EXEC sp_addextendedproperty 
+    @name = 'ApplicationAssociation', 
+    @value = 'Finance System';
+EXEC sp_addextendedproperty 
+    @name = 'ContactEmail', 
+    @value = 'finance_support@company.com';
+EXEC sp_addextendedproperty 
+    @name = 'DataCustodian', 
+    @value = 'John Doe';
+
+
+	USE CustomerDB;
+GO
+EXEC sp_addextendedproperty 
+    @name = 'GroupOwner', 
+    @value = 'Customer Support';
+EXEC sp_addextendedproperty 
+    @name = 'BusinessPriority', 
+    @value = 'Important';
+EXEC sp_addextendedproperty 
+    @name = 'BusinessFunction', 
+    @value = 'Customer Service';
+EXEC sp_addextendedproperty 
+    @name = 'ApplicationAssociation', 
+    @value = 'Customer Service Portal';
+EXEC sp_addextendedproperty 
+    @name = 'ContactEmail', 
+    @value = 'cust_support@company.com';
+EXEC sp_addextendedproperty 
+    @name = 'DataCustodian', 
+    @value = 'Emma Lee';
+GO
+
+
+DECLARE @DatabaseName NVARCHAR(128);
+DECLARE @SQL NVARCHAR(MAX);
+
+
+-- Drop the temporary table if it exists
+IF OBJECT_ID('tempdb..#ExtendedProperties') IS NOT NULL
+    DROP TABLE #ExtendedProperties;
+
+-- Temporary table to store results
+CREATE TABLE #ExtendedProperties (
+    DatabaseName NVARCHAR(128),
+    PropertyName NVARCHAR(128),
+    PropertyValue SQL_VARIANT,
+	dte datetime default getdate()
+);
+
+-- Cursor to iterate over each database
+DECLARE db_cursor CURSOR FOR 
+SELECT name FROM sys.databases WHERE state = 0 AND name IN ('FinanceDB','CustomerDB');
+
+OPEN db_cursor;
+FETCH NEXT FROM db_cursor INTO @DatabaseName;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    SET @SQL = '
+    USE ' + QUOTENAME(@DatabaseName) + ';
+    INSERT INTO #ExtendedProperties (DatabaseName, PropertyName, PropertyValue)
+    SELECT ''' + @DatabaseName + ''', name, value 
+    FROM sys.extended_properties
+    WHERE class = 0;';  -- 0 indicates the database level
+    EXEC sp_executesql @SQL;
+    
+    FETCH NEXT FROM db_cursor INTO @DatabaseName;
+END
+
+CLOSE db_cursor;
+DEALLOCATE db_cursor;
+
+-- Display results
+SELECT * FROM #ExtendedProperties;
+
+
+SELECT 
+    DatabaseName,
+    [GroupOwner],
+    [BusinessPriority],
+    [BusinessFunction],
+    [ApplicationAssociation],
+    [ContactEmail],
+    [DataCustodian]
+FROM 
+    (
+        SELECT 
+            DatabaseName, 
+            PropertyName, 
+            PropertyValue
+        FROM 
+            #ExtendedProperties
+    ) AS SourceTable
+PIVOT
+(
+    MAX(PropertyValue)
+    FOR PropertyName IN ([GroupOwner], [BusinessPriority], [BusinessFunction], 
+                         [ApplicationAssociation], [ContactEmail], [DataCustodian])
+) AS PivotTable
+ORDER BY DatabaseName;
 
 
 
