@@ -298,7 +298,7 @@ ORDER BY DatabaseName;
 
 
 
-
+In this Phased Migration project, reports are being transferred from one system to another in 10% increments as part of a Controlled Rollout strategy. This approach ensures users can continue accessing reports daily while allowing for careful monitoring and troubleshooting at each stage. At the halfway mark, we’ve implemented a Migration Integrity Pause to validate that no false issues are attributed to the migrated reports. This pause provides time to ensure stability and integrity before resuming the migration in a few weeks.
 
 
 
