@@ -1,0 +1,50 @@
+WITH ServerScores AS (
+
+    SELECT 
+
+        CASE 
+
+            WHEN n.Description LIKE '%Windows 2019 Server%' OR n.Description LIKE '%Windows 2022 Server%' THEN 0 -- Fully Supported
+
+            WHEN n.Description LIKE '%Windows 2016 Server%' OR n.Description LIKE '%Windows 2012 R2 Server%' THEN -1 -- Partially Supported
+
+            WHEN n.Description LIKE '%Windows 2008 R2 Server%' OR n.Description LIKE '%Windows 2003 Server%' THEN -5 -- Unsupported
+
+            ELSE 0 -- Default score if no match
+
+        END AS Score,
+
+        COUNT(*) AS NodeCount
+
+    FROM Orion.Nodes AS n
+
+    WHERE n.Description LIKE '%Windows%'
+
+    GROUP BY 
+
+        CASE 
+
+            WHEN n.Description LIKE '%Windows 2019 Server%' OR n.Description LIKE '%Windows 2022 Server%' THEN 0
+
+            WHEN n.Description LIKE '%Windows 2016 Server%' OR n.Description LIKE '%Windows 2012 R2 Server%' THEN -1
+
+            WHEN n.Description LIKE '%Windows 2008 R2 Server%' OR n.Description LIKE '%Windows 2003 Server%' THEN -5
+
+            ELSE 0
+
+        END
+
+),
+
+TotalNodes AS (
+
+    SELECT SUM(NodeCount) AS TotalCount FROM ServerScores
+
+)
+
+SELECT 
+
+    ROUND(SUM(Score * NodeCount) * 1.0 / (SELECT TotalCount FROM TotalNodes), 2) AS WeightedMeanScore
+
+FROM ServerScores;
+
