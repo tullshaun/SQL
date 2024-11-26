@@ -1,3 +1,22 @@
+
+SELECT
+    ROUND(
+        SUM(
+            CASE
+                WHEN Description LIKE '%Windows 2019 Server%' OR Description LIKE '%Windows 2022 Server%' THEN 0  -- Fully Supported
+                WHEN Description LIKE '%Windows 2016 Server%' OR Description LIKE '%Windows 2012 R2 Server%' THEN -1 -- Partially Supported
+                WHEN Description LIKE '%Windows 2008 R2 Server%' OR Description LIKE '%Windows 2003 Server%' THEN -5 -- Unsupported
+                ELSE 0 -- Default score for non-matching nodes
+            END
+        ) * 1.0 / COUNT(*), -- Divide the total weighted score by the total number of nodes
+        2 -- Round the result to 2 decimal places
+    ) AS WeightedMeanScore
+FROM Orion.Nodes
+WHERE Description LIKE '%Windows%' -- Only include Windows servers
+
+
+
+
 WITH ServerScores AS (
 
     SELECT 
