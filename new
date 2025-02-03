@@ -1,0 +1,42 @@
+
+-- Step 1: Identify High CPU Queries
+SELECT TOP 10 
+    total_worker_time/execution_count AS AvgCPUTime, 
+    execution_count, 
+    total_elapsed_time/execution_count AS AvgElapsedTime, 
+    text AS QueryText
+FROM sys.dm_exec_query_stats
+CROSS APPLY sys.dm_exec_sql_text(sql_handle)
+ORDER BY AvgCPUTime DESC;
+
+-- Step 2: Identify Queries with High Logical Reads
+SELECT TOP 10 
+    total_logical_reads/execution_count AS AvgLogicalReads,
+    execution_count, 
+    total_elapsed_time/execution_count AS AvgElapsedTime, 
+    text AS QueryText
+FROM sys.dm_exec_query_stats
+CROSS APPLY sys.dm_exec_sql_text(sql_handle)
+ORDER BY AvgLogicalReads DESC;
+
+-- Step 3: Find Missing Indexes
+SELECT migs.user_seeks, migs.user_scans, mid.statement_text, mid.equality_columns, mid.inequality_columns
+FROM sys.dm_db_missing_index_group_stats migs
+JOIN sys.dm_db_missing_index_groups mig ON migs.group_handle = mig.index_group_handle
+JOIN sys.dm_db_missing_index_details mid ON mig.index_handle = mid.index_handle
+ORDER BY migs.user_seeks DESC;
+
+-- Step 4: Check Current Index Usage
+SELECT i.name AS IndexName, i.index_id, i.type_desc, us.user_seeks, us.user_scans
+FROM sys.indexes i
+JOIN sys.dm_db_index_usage_stats us ON i.object_id = us.object_id
+WHERE us.database_id = DB_ID() AND us.user_seeks > us.user_scans;
+
+-- Step 5: Update Outdated Statistics (Run if needed)
+UPDATE STATISTICS YourTableName;
+
+-- Step 6: Monitor Query Performance Over Time
+SELECT r.session_id, r.status, r.cpu_time, r.total_elapsed_time, r.logical_reads, t.text AS QueryText
+FROM sys.dm_exec_requests r
+CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t
+ORDER BY r.cpu_time DESC;
