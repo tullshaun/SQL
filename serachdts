@@ -1,0 +1,13 @@
+WITH XMLNAMESPACES ('www.microsoft.com/SqlServer/Dts' AS DTS)
+SELECT 
+    p.name AS PackageName,
+    f.foldername AS FolderPath,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="ObjectName"])[1]', 'nvarchar(255)') AS ConnectionManagerName,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="ConnectionString"])[1]', 'nvarchar(max)') AS ConnectionString
+FROM msdb.dbo.sysssispackages p
+JOIN msdb.dbo.sysdtspackagefolders f 
+    ON p.folderid = f.folderid
+CROSS APPLY (SELECT CONVERT(xml, CONVERT(varbinary(max), p.packagedata))) x (PackageXML)
+WHERE x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Excel")]') = 1
+   OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Microsoft.ACE")]') = 1
+   OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Microsoft.Jet")]') = 1;
