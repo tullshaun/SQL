@@ -1,3 +1,32 @@
+search every connection manager
+
+WITH XMLNAMESPACES ('www.microsoft.com/SqlServer/Dts' AS DTS)
+SELECT 
+    p.name AS PackageName,
+    f.foldername AS FolderPath,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="ObjectName"])[1]', 'nvarchar(255)') AS ConnectionManagerName,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="CreationName"])[1]', 'nvarchar(255)') AS CreationName,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="ConnectionString"])[1]', 'nvarchar(max)') AS ConnectionString,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="Description"])[1]', 'nvarchar(max)') AS Description
+FROM msdb.dbo.sysssispackages p
+JOIN msdb.dbo.sysdtspackagefolders f 
+    ON p.folderid = f.folderid
+CROSS APPLY (
+    SELECT CONVERT(xml, CONVERT(varbinary(max), p.packagedata))
+) x (PackageXML)
+WHERE x.PackageXML.exist('//DTS:ConnectionManager') = 1
+ORDER BY 
+    f.foldername,
+    p.name;
+
+
+
+
+
+
+
+
+
 WITH XMLNAMESPACES ('www.microsoft.com/SqlServer/Dts' AS DTS)
 SELECT 
     p.name AS PackageName,
