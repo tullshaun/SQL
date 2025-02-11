@@ -1,3 +1,48 @@
+
+WITH XMLNAMESPACES ('www.microsoft.com/SqlServer/Dts' AS DTS),
+LatestJobRun AS (
+    SELECT 
+        h.job_id, 
+        h.step_id, 
+        MAX(h.run_date) AS LastRunDate
+    FROM msdb.dbo.sysjobhistory h
+    GROUP BY h.job_id, h.step_id
+)
+SELECT 
+    sj.name AS JobName,
+    sjs.step_name AS JobStep,
+    ljr.LastRunDate,
+    CASE h.run_status
+        WHEN 0 THEN 'Failed'
+        WHEN 1 THEN 'Succeeded'
+        WHEN 2 THEN 'Retry'
+        WHEN 3 THEN 'Canceled'
+        WHEN 4 THEN 'In Progress'
+    END AS JobStatus,
+    p.name AS PackageName, 
+    f.foldername AS FolderPath, 
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="ObjectName"])[1]', 'nvarchar(255)') AS ConnectionManagerName, 
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="CreationName"])[1]', 'nvarchar(255)') AS CreationName, 
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="ConnectionString"])[1]', 'nvarchar(max)') AS ConnectionString, 
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="Description"])[1]', 'nvarchar(max)') AS Description
+FROM msdb.dbo.sysjobs sj
+JOIN msdb.dbo.sysjobsteps sjs ON sj.job_id = sjs.job_id
+JOIN LatestJobRun ljr ON sj.job_id = ljr.job_id AND sjs.step_id = ljr.step_id
+JOIN msdb.dbo.sysjobhistory h ON ljr.job_id = h.job_id 
+    AND ljr.step_id = h.step_id 
+    AND ljr.LastRunDate = h.run_date
+JOIN msdb.dbo.sysssispackages p ON CHARINDEX(p.name, sjs.command) > 0
+JOIN msdb.dbo.sysdtspackagefolders f ON p.folderid = f.folderid
+CROSS APPLY (SELECT CONVERT(xml, CONVERT(varbinary(max), p.packagedata))) x (PackageXML)
+WHERE 
+    sjs.subsystem = 'SSIS' 
+    AND x.PackageXML.exist('//DTS:ConnectionManager') = 1
+ORDER BY 
+    ljr.LastRunDate DESC, 
+    f.foldername, 
+    p.name;
+
+#################################################################################
 search every connection manager
 
 WITH XMLNAMESPACES ('www.microsoft.com/SqlServer/Dts' AS DTS)
