@@ -11,3 +11,35 @@ CROSS APPLY (SELECT CONVERT(xml, CONVERT(varbinary(max), p.packagedata))) x (Pac
 WHERE x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Excel")]') = 1
    OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Microsoft.ACE")]') = 1
    OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Microsoft.Jet")]') = 1;
+############################################################################################################################
+
+WITH XMLNAMESPACES ('www.microsoft.com/SqlServer/Dts' AS DTS)
+
+SELECTÂ 
+
+Â  Â  p.name AS PackageName,Â 
+
+Â  Â  f.foldername AS FolderPath,Â 
+
+Â  Â  x.PackageXML.value('(/DTS:Property[@DTS:Name="ObjectName"])[1]', 'nvarchar(255)') AS ConnectionManagerName,Â 
+
+Â  Â  x.PackageXML.value('(/DTS:Property[@DTS:Name="ConnectionString"])[1]', 'nvarchar(max)') AS ConnectionString
+
+FROM msdb.dbo.sysssispackages p
+
+JOIN msdb.dbo.sysssispackagefolders f ON p.folderid = f.folderid
+
+CROSS APPLY (SELECT CONVERT(xml, CONVERT(varbinary(max), p.packagedata))) x (PackageXML)
+
+WHEREÂ 
+
+Â  Â  x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Excel")]') = 1
+
+Â  Â  AND x.PackageXML.value('(/DTS:Property[@DTS:Name="ConnectionString"])[1]', 'nvarchar(max)') LIKE '%Excel%'
+
+ORDER BY p.name;
+
+
+
+
+
