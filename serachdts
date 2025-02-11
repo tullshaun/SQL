@@ -39,6 +39,87 @@ WHEREÂ
 
 ORDER BY p.name;
 
+####################################################################################################################################
+
+WITH XMLNAMESPACES ('www.microsoft.com/SqlServer/Dts' AS DTS)
+SELECT 
+    p.name AS PackageName,
+    f.foldername AS FolderPath,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="ObjectName"])[1]', 'nvarchar(255)') AS ConnectionManagerName,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="ConnectionString"])[1]', 'nvarchar(max)') AS ConnectionString,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="CreationName"])[1]', 'nvarchar(255)') AS CreationName
+FROM msdb.dbo.sysssispackages p
+JOIN msdb.dbo.sysdtspackagefolders f 
+    ON p.folderid = f.folderid
+CROSS APPLY (SELECT CONVERT(xml, CONVERT(varbinary(max), p.packagedata))) x (PackageXML)
+WHERE 
+    -- Check CreationName for Excel specifically
+    x.PackageXML.exist('//DTS:Property[@DTS:Name="CreationName"][contains(., "Excel")]') = 1
+    OR
+    -- Check for Excel file extensions in connection string
+    x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., ".xls")]') = 1
+    OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., ".xlsx")]') = 1
+    OR
+    -- Check for specific Office connection providers
+    (x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Microsoft.ACE")]') = 1
+     AND x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Excel")]') = 1)
+    OR
+    (x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Microsoft.Jet")]') = 1
+     AND x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Excel")]') = 1);
+
+#############################################################################################################################################
+
+
+
+WITH XMLNAMESPACES ('www.microsoft.com/SqlServer/Dts' AS DTS)
+SELECT 
+    p.name AS PackageName,
+    f.foldername AS FolderPath,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="ObjectName"])[1]', 'nvarchar(255)') AS ConnectionManagerName,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="ConnectionString"])[1]', 'nvarchar(max)') AS ConnectionString,
+    x.PackageXML.value('(//DTS:Property[@DTS:Name="CreationName"])[1]', 'nvarchar(255)') AS CreationName
+FROM msdb.dbo.sysssispackages p
+JOIN msdb.dbo.sysdtspackagefolders f 
+    ON p.folderid = f.folderid
+CROSS APPLY (SELECT CONVERT(xml, CONVERT(varbinary(max), p.packagedata))) x (PackageXML)
+WHERE 
+    -- Excel specific checks
+    x.PackageXML.exist('//DTS:Property[@DTS:Name="CreationName"][contains(., "Excel")]') = 1
+    OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., ".xls")]') = 1
+    OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., ".xlsx")]') = 1
+    OR
+    -- Access specific checks
+    x.PackageXML.exist('//DTS:Property[@DTS:Name="CreationName"][contains(., "Access")]') = 1
+    OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., ".mdb")]') = 1
+    OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., ".accdb")]') = 1
+    OR
+    -- Word specific checks
+    x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., ".doc")]') = 1
+    OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., ".docx")]') = 1
+    OR
+    -- PowerPoint specific checks
+    x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., ".ppt")]') = 1
+    OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., ".pptx")]') = 1
+    OR
+    -- Office providers with specific file types
+    (x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Microsoft.ACE")]') = 1
+     AND (
+         x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Excel")]') = 1 OR
+         x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Access")]') = 1
+     ))
+    OR
+    (x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Microsoft.Jet")]') = 1
+     AND (
+         x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Excel")]') = 1 OR
+         x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Access")]') = 1
+     ))
+    OR
+    -- Office-specific provider checks
+    x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Office.15")]') = 1
+    OR x.PackageXML.exist('//DTS:Property[@DTS:Name="ConnectionString"][contains(., "Office.16")]') = 1;
+
+
+
 
 
 
