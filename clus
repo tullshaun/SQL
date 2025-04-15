@@ -1,3 +1,281 @@
+Full Diagnostic and Remediation Plan
+🔹 Phase 1: Understand the Current Cluster State
+✅ Step 1: Confirm Cluster Health
+On either SQL node, open PowerShell as Administrator and run:
+
+powershell
+Copy
+Edit
+Get-ClusterNode | Select Name, State, NodeWeight, DynamicWeight
+✅ Expected:
+
+Both nodes show State = Up, NodeWeight = 1, DynamicWeight = 1
+
+If any node has NodeWeight = 0 or DynamicWeight = 0, it's not participating in quorum.
+
+✅ Step 2: Check Quorum Configuration
+Run:
+
+powershell
+Copy
+Edit
+Get-ClusterQuorum
+✅ Expected:
+
+QuorumType should be NodeAndFileShareMajority
+
+QuorumResource should point to the FSW path
+
+If it's showing something unusual (like FileShareMajority), the cluster may be misconfigured.
+
+✅ Step 3: Check Cluster Dynamic Quorum Settings
+Run:
+
+powershell
+Copy
+Edit
+(Get-Cluster).DynamicQuorum
+(Get-Cluster).DynamicWitness
+✅ Expected:
+
+DynamicQuorum = True (default)
+
+DynamicWitness = True (FSW vote adjusts automatically)
+
+Optional:
+
+powershell
+Copy
+Edit
+(Get-Cluster).QuorumArbitrationTimeMax
+This tells how long (in seconds) the cluster waits before declaring quorum lost after communication drops.
+
+🔹 Phase 2: Check for Historical Failures
+✅ Step 4: Examine Event Logs
+On both SQL nodes:
+
+Open Event Viewer
+
+Navigate to:
+
+Windows Logs > System
+
+Applications and Services Logs > Microsoft > Windows > FailoverClustering > Operational
+
+Filter for critical, error, or warning events during the timeframe the FSW went down.
+
+🔍 Look for:
+
+Event IDs like 1177, 1561, 1146, 1205, 1069
+
+Messages about quorum loss, resource failure, or cluster communication issues
+
+✅ Step 5: Review Cluster Validation
+Open Failover Cluster Manager:
+
+Right-click the cluster > Validate Cluster
+
+Run full validation
+
+Focus on:
+
+Network
+
+Quorum Configuration
+
+System Configuration
+
+🔹 Phase 3: Test and Mitigate
+✅ Step 6: Simulate FSW Loss (optional but valuable)
+Do this in a maintenance window:
+
+Stop the File Share Witness server (or disable the share)
+
+Observe:
+
+Do the SQL nodes remain up?
+
+Does the AG stay online?
+
+Run:
+
+powershell
+Copy
+Edit
+Get-ClusterGroup
+Confirm all cluster groups and the AG role remain in Online state
+
+If they go offline → something's still wrong with quorum/voting on a node.
+
+✅ Step 7: Restart Cluster Service (if needed)
+If a node is behaving oddly (low weight or unresponsive):
+
+powershell
+Copy
+Edit
+Stop-Service clussvc
+Start-Service clussvc
+⚠️ Only do this on one node at a time, and preferably during maintenance hours.
+
+✅ Step 8: Reconfigure Quorum (if needed)
+If quorum settings or witness are incorrect:
+
+Open Failover Cluster Manager
+
+Go to More Actions > Configure Cluster Quorum Settings
+
+Choose “Advanced quorum configuration” and:
+
+Ensure both nodes have votes
+
+Ensure File Share Witness is correctly configured
+
+🔹 Phase 4: Harden the Configuration
+✅ Step 9: Update OS and Drivers
+Ensure:
+
+Windows Updates are current
+
+Network and storage drivers are up to date
+
+Cluster-aware updates are applied
+
+✅ Step 10: Document Current Cluster Setup
+Record:
+
+Output of Get-ClusterNode, Get-ClusterQuorum
+
+Witness location and share permissions
+
+Voting configuration
+
+Event IDs if issue recurs
+
+📌 Optional Preventative Measures
+Add a Cloud Witness as a secondary option (esp. for DR scenarios)
+
+Enable Cluster Log Collection for easier future analysis:
+
+powershell
+Copy
+Edit
+Get-ClusterLog -UseLocalTime -Destination C:\ClusterLogs
+✅ Summary: What to Focus On
+
+Focus Area	Why It Matters
+NodeWeight & DynamicWeight	Tells if nodes are actively voting
+Quorum Type	Ensures correct majority behavior
+Event Logs	Reveal hidden or transient issues
+Cluster Service Health	Nodes may appear “up” but not functional
+Validation Tests	Highlight misconfiguration or instability
+
+
+###########################################################################################script##########################################
+
+
+# Run this on one of the SQL nodes as Administrator
+
+Write-Host "`n=== SQL Always On Cluster Health Diagnostics ===`n" -ForegroundColor Cyan
+
+# Step 1: Get Cluster Node Voting Info
+Write-Host "`n-- Cluster Node Status --`n" -ForegroundColor Yellow
+$nodes = Get-ClusterNode | Select Name, State, NodeWeight, DynamicWeight
+
+foreach ($node in $nodes) {
+    $status = if ($node.State -eq "Up" -and $node.NodeWeight -eq 1 -and $node.DynamicWeight -eq 1) {"✅ GOOD"} else {"❌ CHECK"}
+    Write-Host "$($node.Name): State=$($node.State), NodeWeight=$($node.NodeWeight), DynamicWeight=$($node.DynamicWeight) => $status"
+}
+
+# Step 2: Get Quorum Configuration
+Write-Host "`n-- Quorum Configuration --`n" -ForegroundColor Yellow
+$quorum = Get-ClusterQuorum
+Write-Host "Quorum Type: $($quorum.QuorumType)"
+Write-Host "Quorum Resource: $($quorum.QuorumResource)"
+
+if ($quorum.QuorumType -like "*FileShare*" -and $quorum.QuorumResource) {
+    Write-Host "✅ Quorum type is using File Share Witness and resource is defined." -ForegroundColor Green
+} else {
+    Write-Host "❌ Quorum type is not configured correctly or missing witness." -ForegroundColor Red
+}
+
+# Step 3: Dynamic Quorum and Witness
+Write-Host "`n-- Dynamic Quorum Settings --`n" -ForegroundColor Yellow
+$cluster = Get-Cluster
+Write-Host "DynamicQuorum: $($cluster.DynamicQuorum)"
+Write-Host "DynamicWitness: $($cluster.DynamicWitness)"
+
+if ($cluster.DynamicQuorum -eq $true -and $cluster.DynamicWitness -eq $true) {
+    Write-Host "✅ Dynamic quorum and witness are enabled." -ForegroundColor Green
+} else {
+    Write-Host "❌ Dynamic quorum or witness is disabled — may lead to instability." -ForegroundColor Red
+}
+
+# Step 4: Quorum Arbitration Time
+Write-Host "`n-- Quorum Arbitration Timeout --`n" -ForegroundColor Yellow
+$arbitrationTime = $cluster.QuorumArbitrationTimeMax
+Write-Host "QuorumArbitrationTimeMax: $arbitrationTime seconds"
+if ($arbitrationTime -ge 60) {
+    Write-Host "✅ Adequate timeout for quorum arbitration." -ForegroundColor Green
+} else {
+    Write-Host "⚠️ Timeout may be too short for transient failures." -ForegroundColor DarkYellow
+}
+
+# Step 5: Cluster Group Status
+Write-Host "`n-- Cluster Group Status --`n" -ForegroundColor Yellow
+$groups = Get-ClusterGroup
+foreach ($g in $groups) {
+    $groupStatus = if ($g.State -eq "Online") {"✅ Online"} else {"❌ Offline"}
+    Write-Host "$($g.Name): $($g.State) => $groupStatus"
+}
+
+# Step 6: List Recent Cluster Errors
+Write-Host "`n-- Recent Cluster Events (Last 1 Day) --`n" -ForegroundColor Yellow
+Get-WinEvent -LogName "Microsoft-Windows-FailoverClustering/Operational" -MaxEvents 20 |
+    Where-Object { $_.TimeCreated -gt (Get-Date).AddDays(-1) } |
+    Format-Table TimeCreated, Id, LevelDisplayName, Message -AutoSize
+
+Write-Host "`n=== Diagnostics Complete ===`n" -ForegroundColor Cyan
+
+#########################################################################
+Save the script as Check-AlwaysOnCluster.ps1
+
+###########################################################################
+
+If You Want to Save the Output to a File
+You should wrap the whole script between Start-Transcript and Stop-Transcript. That means:
+
+Start-Transcript goes at the top of the script
+
+Stop-Transcript goes at the bottom
+
+✅ Correct Placement Example:
+powershell
+Copy
+Edit
+# START OF SCRIPT
+
+Start-Transcript -Path "C:\ClusterDiagnostics\ClusterReport.txt" -Append
+
+Write-Host "`n=== SQL Always On Cluster Health Diagnostics ===`n" -ForegroundColor Cyan
+
+# ... [All your diagnostic checks go here] ...
+
+Write-Host "`n=== Diagnostics Complete ===`n" -ForegroundColor Cyan
+
+Stop-Transcript
+
+# END OF SCRIPT
+📁 What It Does:
+Captures everything printed to the console (including Write-Host) and saves it in ClusterReport.txt.
+
+The -Append flag allows it to add to the file if you run it multiple times.
+
+#####################################################################################################################################
+
+
+
+
+
 Clus
 
 if all the quorum members (Node1, Node2, and the FSW) are online and communicating, there should be no issue. The databases going offline only when the File Share Witness goes down, while both nodes remain up, points to something wrong with how quorum voting or cluster membership is being handled.
