@@ -1,0 +1,99 @@
+Clus
+
+if all the quorum members (Node1, Node2, and the FSW) are online and communicating, there should be no issue. The databases going offline only when the File Share Witness goes down, while both nodes remain up, points to something wrong with how quorum voting or cluster membership is being handled.
+
+So let’s drill deeper with that in mind.
+
+🧠 Here's the core logic of what you're observing:
+✅ All nodes and FSW online → everything works fine.
+
+❌ FSW goes offline (nodes still online) → Always On databases go offline.
+
+That shouldn’t happen in a healthy 2-node cluster with FSW — because quorum only requires any 2 out of 3 votes.
+
+🧩 So what’s the likely cause?
+✅ Yes, they can ping and see each other — but cluster voting and membership isn't just about connectivity.
+There are more subtle causes that could lead to what you're seeing:
+
+🔍 Top 3 Most Likely Issues Given This Behavior
+1. One Node Is Not Voting (Down or Removed From Quorum)
+Even if it's online, it might be:
+
+Marked as IsExcludedFromQuorum = True
+
+Not actively participating in the vote (e.g., due to transient failure or heartbeat issue)
+
+Cluster sees it as “up” but not contributing to quorum
+
+🧪 Run this:
+
+powershell
+Copy
+Edit
+Get-ClusterNode | Select Name, State, DynamicWeight, NodeWeight
+NodeWeight = 1 = eligible to vote
+
+If a node shows NodeWeight = 0, it's not voting, so you’re actually down to 1 vote + FSW
+
+When FSW goes offline → only 1 vote → quorum lost
+
+2. Dynamic Quorum Rebalanced Incorrectly (Due to Previous Outage)
+If you had a previous incident where one node briefly dropped, dynamic quorum may have rebalanced votes:
+
+Cluster may have disabled one node’s vote to preserve quorum in degraded state
+
+When FSW later goes down → quorum lost, even though both nodes are up
+
+🧪 Check:
+
+powershell
+Copy
+Edit
+(Get-Cluster).DynamicQuorum
+(Get-ClusterNode).DynamicWeight
+If a node’s DynamicWeight = 0, it's temporarily excluded from quorum.
+
+3. Cluster Configuration: Quorum Mode / Witness Misconfiguration
+The cluster might be configured with static quorum or set to require the witness to maintain quorum.
+
+🧪 Check:
+
+powershell
+Copy
+Edit
+Get-ClusterQuorum
+It will return something like:
+
+text
+Copy
+Edit
+ClusterQuorumType      ResourceName       QuorumResource
+-------------------    ---------------    ---------------------
+NodeAndFileShareMajority   File Share Witness  \\fsw\quorum
+✅ Expected: It says “NodeAndFileShareMajority”
+❌ If it says anything else (like FileShareMajority with only 1 voting node), then that’s a problem.
+
+🔧 Recommended Action Steps
+Confirm that both nodes are voting members (NodeWeight = 1)
+
+Check if DynamicWeight for both nodes is 1
+
+Review Get-ClusterQuorum to make sure FSW is not required
+
+Optionally, disable dynamic quorum for testing:
+
+powershell
+Copy
+Edit
+(Get-Cluster).DynamicQuorum = 0
+Final Thought
+Yes — just because both nodes can communicate doesn’t always mean they are actively voting in the cluster’s view. Something as small as a transient delay or missed heartbeat can shift quorum membership unexpectedly.
+
+If you want, paste the output of:
+
+powershell
+Copy
+Edit
+Get-ClusterNode | Select Name, State, NodeWeight, DynamicWeight
+Get-ClusterQuorum
+and I can help interpret it.
