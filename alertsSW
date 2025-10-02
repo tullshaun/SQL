@@ -1,0 +1,125 @@
+SWQL (for SolarWinds custom alert)
+Option A: one alert per failed SQL Agent job
+SELECT
+  i.Uri,
+  i.Name,
+  ToLocal(i.LastRunDate) AS LastRunLocal,
+  i.LastRunStatus,
+  i.DetailsUrl
+FROM Orion.APM.SqlJobInfo AS i
+WHERE i.LastRunStatus <> 1    -- 1 = Succeeded
+
+Option B: roll-up per SQL instance listing which of the four jobs failed
+SELECT
+  app.Uri,
+  app.DisplayName AS SqlInstance,
+  TRIM(
+    CASE WHEN EXISTS (
+      SELECT 1 FROM Orion.APM.SqlJobInfo i
+      WHERE i.ApplicationID = app.ApplicationID
+        AND i.Name = 'JobA' AND i.LastRunStatus <> 1
+    ) THEN 'JobA, ' ELSE '' END
+    +
+    CASE WHEN EXISTS (
+      SELECT 1 FROM Orion.APM.SqlJobInfo i
+      WHERE i.ApplicationID = app.ApplicationID
+        AND i.Name = 'JobB' AND i.LastRunStatus <> 1
+    ) THEN 'JobB, ' ELSE '' END
+    +
+    CASE WHEN EXISTS (
+      SELECT 1 FROM Orion.APM.SqlJobInfo i
+      WHERE i.ApplicationID = app.ApplicationID
+        AND i.Name = 'JobC' AND i.LastRunStatus <> 1
+    ) THEN 'JobC, ' ELSE '' END
+    +
+    CASE WHEN EXISTS (
+      SELECT 1 FROM Orion.APM.SqlJobInfo i
+      WHERE i.ApplicationID = app.ApplicationID
+        AND i.Name = 'JobD' AND i.LastRunStatus <> 1
+    ) THEN 'JobD, ' ELSE '' END
+  , ', ') AS FailedJobs,
+  (
+    SELECT COUNT(*)
+    FROM Orion.APM.SqlJobInfo i
+    WHERE i.ApplicationID = app.ApplicationID
+      AND i.Name IN ('JobA','JobB','JobC','JobD')
+      AND i.LastRunStatus <> 1
+  ) AS FailedCount,
+  ToLocal(
+    (
+      SELECT MAX(i.LastRunDate)
+      FROM Orion.APM.SqlJobInfo i
+      WHERE i.ApplicationID = app.ApplicationID
+        AND i.Name IN ('JobA','JobB','JobC','JobD')
+        AND i.LastRunStatus <> 1
+    )
+  ) AS LatestFailedRunLocal
+FROM Orion.APM.SqlServerApplication AS app
+WHERE (
+  SELECT COUNT(*)
+  FROM Orion.APM.SqlJobInfo i
+  WHERE i.ApplicationID = app.ApplicationID
+    AND i.Name IN ('JobA','JobB','JobC','JobD')
+    AND i.LastRunStatus <> 1
+) >= 1
+
+🛠 T-SQL / SQL version (for running directly in SQL Server)
+
+This is an example query you could run against the msdb database (or via system views) to find which of your four SQL Agent jobs failed most recently. It’s not exactly 1:1 with SWQL, but conceptually parallel.
+
+USE msdb;
+GO
+
+-- List all four jobs with last run status
+SELECT
+  j.name AS JobName,
+  h.run_date AS LastRunDate,
+  h.run_time AS LastRunTime,
+  h.run_status AS LastRunStatus
+FROM
+  dbo.sysjobs AS j
+  LEFT JOIN dbo.sysjobhistory AS h
+    ON j.job_id = h.job_id
+    AND h.step_id = 0
+WHERE
+  j.name IN ('JobA', 'JobB', 'JobC', 'JobD')
+  AND h.instance_id = (
+    -- pick the latest history row for that job (step_id = 0 means the overall outcome)
+    SELECT MAX(h2.instance_id)
+    FROM dbo.sysjobhistory h2
+    WHERE h2.job_id = j.job_id
+      AND h2.step_id = 0
+  )
+ORDER BY j.name;
+
+
+You could extend this SQL further, for example:
+
+-- Combine them into a comma-separated list of failed jobs
+;WITH LatestJobs AS (
+  SELECT
+    j.job_id,
+    j.name AS JobName,
+    h.run_status
+  FROM dbo.sysjobs j
+  JOIN dbo.sysjobhistory h
+    ON j.job_id = h.job_id
+    AND h.step_id = 0
+    AND h.instance_id = (
+      SELECT MAX(h2.instance_id)
+      FROM dbo.sysjobhistory h2
+      WHERE h2.job_id = j.job_id
+        AND h2.step_id = 0
+    )
+  WHERE j.name IN ('JobA', 'JobB', 'JobC', 'JobD')
+)
+SELECT
+  STUFF((
+    SELECT ', ' + lj.JobName
+    FROM LatestJobs lj
+    WHERE lj.run_status <> 1 -- failed or non-success
+    FOR XML PATH(''), TYPE
+  ).value('.', 'nvarchar(max)'), 1, 2, '') AS FailedJobsList
+
+
+That last query gives you a single row: a comma-separated list of which jobs among your four have failed (if any).
