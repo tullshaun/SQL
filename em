@@ -19,3 +19,24 @@ Confirmation of whether these exclusions are mandatory for maintaining vendor-su
 Without this information, our ability to stabilize the platform and comply with internal security governance requirements is severely limited.
 
 We appreciate your immediate attention to this request and ask that you treat this as a priority escalation.
+
+
+Dear SolarWinds Support,
+
+Thank you for your recent response and the link to the KB article “Files and directories to exclude from antivirus scanning for Orion Platform products” (Updated Jan 31, 2025).
+
+Unfortunately, the information provided is too generic for our environment and does not meet the documentation standards required for implementation within a highly regulated corporate banking network.
+
+To proceed, we require clear, vendor-backed guidance specifying:
+
+The exact files, folders, and processes that must be excluded from Microsoft Defender/EDR scanning.
+
+Which exclusions are mandatory to ensure supported performance and stability.
+
+Confirmation that these recommendations are validated by SolarWinds engineering and applicable to our installed version – [insert version, e.g. Orion Platform 2023.4].
+
+Any supporting documentation (e.g. enterprise deployment guide, whitepaper, or security advisory) used for similar high-security customers.
+
+Our internal security and compliance teams cannot approve exclusions without formal vendor documentation clearly stating what is required and officially supported. The current KB article only references general best practices and does not provide the level of specificity necessary for risk-assessed implementation.
+
+Please escalate this request to Tier 3 Engineering or the Product Team so we can obtain an authoritative response. This issue is currently impacting operational stability, and we require definitive exclusion guidance to move forward.
