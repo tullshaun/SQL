@@ -1,4 +1,124 @@
 x
+Subject: Evidence of Compatibility Conflict Between SolarWinds and Microsoft Defender
+
+
+
+
+
+
+
+Dear SolarWinds Support,
+
+
+
+Please find attached evidence from controlled testing on the same server (VMAPPC259) showing a clear compatibility conflict between SolarWinds services and Microsoft Defender (Antimalware Service Executable).
+
+
+
+The results are as follows:
+
+
+
+1. Defender ON + SolarWinds ON → 100% CPU Utilization
+
+
+
+Both Antimalware Service Executable and multiple SolarWinds BusinessLayerHost / JobEngineWorker processes spike simultaneously.
+Confirms direct contention between SolarWinds components and Defender’s scanning engine.
+
+
+
+
+2. Defender ON + SolarWinds OFF → Normal CPU (~15%)
+
+
+
+System performance remains stable.
+Confirms Defender operates normally when SolarWinds is inactive.
+
+
+
+
+3. SolarWinds ON + Defender OFF → Moderate CPU (50–60%)
+
+
+
+SolarWinds operates within expected parameters when Defender is disabled.
+
+
+
+
+
+
+
+
+Summary of Findings
+
+
+
+When both applications are active, CPU usage reaches 100%, and the Microsoft Defender Antivirus Network Inspection Service repeatedly terminates unexpectedly.
+This behavior is reproducible and isolated to environments running SolarWinds alongside Microsoft Defender.
+The evidence clearly indicates a deep compatibility or resource-locking conflict between SolarWinds and Defender.
+
+
+
+
+
+
+
+
+Request for Action
+
+To progress this issue, please provide:
+
+
+
+A formal, vendor-endorsed Microsoft Defender exclusion list specific to SolarWinds processes, services, and directories (not a generic KB reference).
+Confirmation that this configuration has been tested and validated against Microsoft Defender, which is the default enterprise antivirus solution for Windows Server.
+Escalation to SolarWinds Engineering or Security Response for analysis and timeline on remediation or configuration guidance.
+
+
+
+
+This issue is impacting live monitoring and system stability in a regulated production environment. Immediate escalation would be appreciated.
+
+
+
+
+
+
+
+Attachments:
+
+
+
+Screenshot 1: Defender ON + SolarWinds ON (100% CPU)
+Screenshot 2: Defender ON + SolarWinds OFF (15% CPU)
+Screenshot 3: SolarWinds ON + Defender OFF (50–60% CPU)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 Subject: URGENT ESCALATION: Critical SolarWinds-Microsoft Defender Compatibility Defect - Case [Number]
 
 Dear SolarWinds Support,
