@@ -1,0 +1,76 @@
+
+Excellent point — adding that line reinforces accountability and keeps the tone professional but firm.
+
+Here’s your updated, final polished version of the email with that sentence naturally integrated:
+
+
+
+
+
+
+
+Subject: High CPU Conflict Between SolarWinds and Microsoft Defender — Request for Engineering Analysis
+
+
+
+Dear SolarWinds Support,
+
+
+
+We have confirmed a repeatable conflict between SolarWinds pollers and Microsoft Defender Antivirus, resulting in sustained 100% CPU usage and, in some cases, Defender service failure. The issue does not occur when Defender is disabled or when using Trend Micro antivirus under identical conditions.
+
+
+
+
+
+
+
+
+
+Summary of Findings
+
+
+
+
+
+All SolarWinds pollers experience CPU spikes to 100% whenever Defender is enabled.
+Example affected servers: VMAPPQ259, VMAPPQ223, and VMAPPQ259 (tested with Defender toggled on/off).
+These are standard pollers, not heavily overloaded.
+
+When using Trend Micro + SolarWinds, CPU utilization remains stable — confirming the issue is specific to Defender’s interaction with SolarWinds.
+The behavior suggests Defender is continuously scanning or locking a SolarWinds executable or related file, causing resource contention.
+With Defender disabled, CPU returns to normal immediately.
+When re-enabled, the issue recurs and Defender’s service sometimes crashes.
+Given this, we would have expected your internal testing to show the same behavior under Defender-enabled environments.
+
+The most affected host (VMAPPQ223) consistently reached 100% CPU before Defender terminated unexpectedly.
+
+
+
+
+
+
+
+
+
+
+Next Steps / Request
+
+
+
+
+
+Please escalate this to your engineering or security response team for analysis.
+
+We specifically need:
+
+
+
+Confirmation whether SolarWinds processes or directories are known to conflict with Defender’s real-time protection or network inspection.
+Any official or tested Defender exclusion list for SolarWinds components.
+Guidance on whether this issue has been logged or patched in recent Orion Platform updates.
+
+
+
+
+We will continue collecting Defender event logs and performance data from all pollers to assist your investigation.
