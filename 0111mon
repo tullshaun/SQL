@@ -1,0 +1,35 @@
+Architecture decisions (pollers, ICMP strategy)
+
+
+Auth troubleshooting (Kerberos vs NTLM)
+
+
+Cross-domain config (gMSA, WinRM)
+
+
+Data quality analysis (stale polling insight — most admins miss this)
+
+ That’s senior platform engineering work, not basic admin
+
+
+“Monitoring shows trends and sustained issues — not every moment.”
+
+We sample metrics at intervals (e.g. every 5 minutes), so we get a representative view over time rather than continuous telemetry.
+
+
+“This is industry-standard monitoring. All enterprise monitoring platforms use sampled polling rather than continuous tracking.”
+Then immediately anchor it:
+“The goal is to detect sustained issues and trends without generating excessive load or noise.”
+
+
+This is industry-standard monitoring. It works by sampling at intervals, which allows us to monitor large environments efficiently. It’s designed to detect sustained issues and trends rather than very short-lived spikes.
+
+Our monitoring follows industry-standard practice, using interval-based sampling rather than continuous tracking. This approach is designed to scale efficiently across large environments while reliably detecting sustained issues and trends. Very short-lived spikes can occur between sampling points, but these typically resolve without impact and are not the focus of enterprise monitoring.
+
+Capturing every second of activity would require continuous telemetry and significantly higher overhead, which is not how large-scale monitoring platforms are designed. The current model is intentional and aligns with industry best practice.”
+
+
+“VMware supplements our monitoring with higher granularity real-time metrics (~20 seconds), which helps us see shorter-lived performance fluctuations that may not appear in standard polling intervals.”
+________________________________________
+🔹 5. Very concise version
+“VMware gives us finer-grained, ~20-second real-time metrics.”
