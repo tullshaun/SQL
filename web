@@ -1,0 +1,224 @@
+Export Certificate from LIVE and Import to DR (IIS)
+Objective
+
+Copy an SSL certificate (including private key) from the LIVE server to the DR server and correctly bind it in IIS so each site uses the correct certificate.
+
+PART 1 — EXPORT CERTIFICATE FROM LIVE SERVER
+Step 1 — Open Certificate Manager
+Press:
+Win + R
+Type:
+mmc
+Click:
+File → Add/Remove Snap-in
+Select:
+Certificates → Add
+Choose:
+Computer account → Next → Local Computer → Finish
+Click OK
+Step 2 — Locate the Certificate
+
+Navigate to:
+
+Certificates (Local Computer)
+→ Personal
+→ Certificates
+
+Find the certificate:
+
+Issued To: jla
+Step 3 — Export the Certificate
+Right-click the certificate
+Click:
+All Tasks → Export
+Step 4 — Export Settings
+When prompted:
+
+Private Key
+
+✔ Yes, export the private key
+File Format
+✔ Personal Information Exchange (.PFX)
+✔ Include all certificates in the certification path
+☐ Delete the private key (IMPORTANT: leave unticked)
+✔ Enable certificate privacy
+Step 5 — Save File
+
+Choose a location such as:
+
+C:\Temp\jla.pfx
+Step 6 — Set Password
+
+Enter a password (you will need it on DR server).
+
+Example:
+
+TempPfx!2026
+Step 7 — Complete Export
+
+Click:
+
+Finish
+
+You should now have:
+
+jla.pfx
+PART 2 — COPY FILE TO DR SERVER
+
+Copy:
+
+jla.pfx
+
+To DR server using:
+
+RDP copy/paste
+Network share
+
+Place it in:
+
+C:\Temp\
+PART 3 — IMPORT CERTIFICATE ON DR SERVER
+Step 1 — Open Certificate Manager
+
+On DR server:
+
+Win + R → certlm.msc
+Step 2 — Navigate
+Certificates (Local Computer)
+→ Personal
+→ Certificates
+Step 3 — Import Certificate
+Right-click:
+Certificates
+Click:
+All Tasks → Import
+Step 4 — Select File Type
+
+Choose:
+
+Personal Information Exchange (*.pfx)
+
+Select:
+
+jla.pfx
+Step 5 — Enter Password
+
+Enter the password set earlier.
+
+Step 6 — Import Options
+☐ Enable strong private key protection
+✔ Mark this key as exportable
+☐ Protect private key using virtualization
+✔ Include all extended properties
+Step 7 — Certificate Store
+
+Select:
+
+✔ Place all certificates in the following store
+Certificate store: Personal
+Step 8 — Finish Import
+
+Click:
+
+Finish
+Step 9 — Verify Certificate
+
+Open the certificate and confirm:
+
+"You have a private key that corresponds to this certificate"
+PART 4 — CONFIGURE IIS ON DR SERVER
+Step 1 — Open IIS
+
+Open:
+
+Internet Information Services (IIS) Manager
+Step 2 — Fix JLA Site Binding
+Click:
+Sites → JLA
+Click:
+Bindings…
+Select:
+https / jla / 443
+Click:
+Edit
+Step 3 — Configure Binding
+
+Set EXACTLY:
+
+Type: https
+IP Address: All Unassigned
+Port: 443
+Host name: jla
+✔ Require Server Name Indication (IMPORTANT)
+SSL certificate: jla
+Step 4 — Handle Warning Message
+
+If prompted:
+
+"Another site is using the same HTTPS binding..."
+
+Click:
+
+NO
+
+(We will configure each site separately.)
+
+Step 5 — Fix Other Sites
+
+Repeat for other sites (e.g. MailCheck):
+
+Example:
+
+Site: MailCheck
+Host name: mailcheck
+✔ Require Server Name Indication
+SSL certificate: mailcheck
+IMPORTANT RULE
+
+Each site must have:
+
+Unique hostname
+Correct certificate
+SNI enabled
+PART 5 — VERIFY NO CONFLICTS
+
+Open:
+
+Sites → Bindings (global view)
+
+Ensure:
+
+No duplicate hostname on same port
+PART 6 — TEST DR SERVER
+Step 1 — Edit Hosts File (on your PC)
+
+Add:
+
+<DR-IP>    jla
+Step 2 — Test
+
+Open browser:
+
+https://jla
+
+Check:
+
+No certificate warning
+Correct site loads
+PART 7 — CLEANUP
+
+Delete the .pfx file from:
+
+LIVE server
+DR server
+SUMMARY
+
+You have now:
+
+Exported certificate from LIVE ✔️
+Imported to DR ✔️
+Fixed IIS bindings ✔️
+Enabled SNI ✔️
+Ensured correct certificate per site ✔️
+
+If needed, this setup supports full DR failover using DNS or load balancer.
